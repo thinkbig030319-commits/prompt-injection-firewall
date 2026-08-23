@@ -19,15 +19,34 @@ if _anthropic_key:
 
 
 def _call_gemini(prompt: str) -> str:
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-2.5-flash:generateContent?key={_gemini_key}"
-    )
-    body = {"contents": [{"parts": [{"text": prompt}]}]}
-    resp = requests.post(url, json=body, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-    return data["candidates"][0]["content"]["parts"][0]["text"]
+    # Google's available model names change frequently. Try a short list
+    # of common candidates in order, and use whichever one actually works
+    # for this API key -- this makes the app resilient to Google
+    # deprecating or renaming models without warning.
+    candidates = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-pro-latest"]
+    last_error = None
+    for model_name in candidates:
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{model_name}:generateContent?key={_gemini_key}"
+        )
+        body = {"contents": [{"parts": [{"text": prompt}]}]}
+        try:
+            resp = requests.post(url, json=body, timeout=30)
+            if resp.status_code == 404:
+                last_error = f"{model_name} not available (404)"
+                continue  # try the next candidate
+            resp.raise_for_status()
+            data = resp.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except requests.exceptions.HTTPError as e:
+            last_error = str(e)
+            if resp.status_code != 503:
+                continue  # non-overload errors: try next candidate too
+        except Exception as e:
+            last_error = str(e)
+            continue
+    raise RuntimeError(f"All Gemini model candidates failed. Last error: {last_error}")
 
 
 def _call_anthropic(prompt: str) -> str:
