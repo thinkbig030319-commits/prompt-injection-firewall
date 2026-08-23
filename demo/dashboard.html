@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PromptGuard — Dashboard</title>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0d0f; --panel: #12161a; --border: #232a30; --text: #d8dee3; --muted: #6b7680;
+    --mono: "SF Mono", "IBM Plex Mono", "Courier New", monospace;
+    --allow: #4fd68a; --flag: #e8b84b; --block: #e8544b; --accent: #4fa8d6;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:var(--mono); min-height:100vh; padding:48px 20px; display:flex; justify-content:center; }
+  .wrap { width:100%; max-width:920px; }
+  .brand { display:flex; align-items:baseline; gap:10px; margin-bottom:6px; }
+  .brand .dot { width:9px; height:9px; border-radius:50%; background:var(--accent); box-shadow:0 0 12px var(--accent); }
+  h1 { font-size:20px; margin:0; font-weight:600; }
+  .sub { color:var(--muted); font-size:13px; margin:0 0 16px 19px; }
+  nav { margin-bottom:24px; display:flex; gap:14px; font-size:12px; }
+  nav a { color:var(--muted); text-decoration:none; }
+  nav .active { color:var(--accent); border-bottom:2px solid var(--accent); padding-bottom:4px; }
+  .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+  .stat-box { background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:14px; text-align:center; }
+  .stat-box .n { font-size:24px; font-weight:700; }
+  .stat-box .l { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:4px; }
+  table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--border); border-radius:6px; overflow:hidden; font-size:12px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); }
+  th { color:var(--muted); text-transform:uppercase; font-size:10px; letter-spacing:0.05em; }
+  .badge { padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; text-transform:uppercase; }
+  .badge.allow { background:rgba(79,214,138,0.15); color:var(--allow); }
+  .badge.flag { background:rgba(232,184,75,0.15); color:var(--flag); }
+  .badge.block { background:rgba(232,84,75,0.15); color:var(--block); }
+  .empty { color:var(--muted); text-align:center; padding:30px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+function StatBox({ n, label, color }) {
+  return (
+    <div className="stat-box">
+      <div className="n" style={{ color: color || 'var(--text)' }}>{n}</div>
+      <div className="l">{label}</div>
+    </div>
+  );
+}
+
+function Badge({ verdict }) {
+  return <span className={"badge " + verdict}>{verdict}</span>;
+}
+
+function Dashboard() {
+  const [stats, setStats] = useState({ total: 0, allow: 0, flag: 0, block: 0 });
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    try {
+      const res = await fetch('/logs?limit=50');
+      const data = await res.json();
+      setStats(data.stats);
+      setRows(data.recent);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="wrap">
+      <div className="brand"><div className="dot"></div><h1>PromptGuard</h1></div>
+      <p className="sub">dashboard — live log of every firewall decision</p>
+      <nav>
+        <a href="/">Checker</a>
+        <a href="/chat.html">Protected Chat</a>
+        <span className="active">Dashboard</span>
+      </nav>
+
+      <div className="stat-grid">
+        <StatBox n={stats.total} label="Total checks" />
+        <StatBox n={stats.allow} label="Allowed" color="var(--allow)" />
+        <StatBox n={stats.flag} label="Flagged" color="var(--flag)" />
+        <StatBox n={stats.block} label="Blocked" color="var(--block)" />
+      </div>
+
+      {loading ? (
+        <div className="empty">Loading...</div>
+      ) : rows.length === 0 ? (
+        <div className="empty">No checks logged yet — go try the Checker or Chat page first.</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th><th>Source</th><th>Prompt preview</th><th>Verdict</th><th>Risk</th><th>Signals</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.id}>
+                <td>{new Date(r.timestamp * 1000).toLocaleTimeString()}</td>
+                <td>{r.source}</td>
+                <td>{r.prompt_preview}</td>
+                <td><Badge verdict={r.verdict} /></td>
+                <td>{r.risk_score.toFixed(2)}</td>
+                <td style={{ color: 'var(--muted)' }}>{r.reasons || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Dashboard />);
+</script>
+</body>
+</html>
