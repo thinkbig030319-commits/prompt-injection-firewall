@@ -21,7 +21,7 @@ if _anthropic_key:
 def _call_gemini(prompt: str) -> str:
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-flash-latest:generateContent?key={_gemini_key}"
+        f"gemini-2.5-flash:generateContent?key={_gemini_key}"
     )
     body = {"contents": [{"parts": [{"text": prompt}]}]}
     resp = requests.post(url, json=body, timeout=30)
