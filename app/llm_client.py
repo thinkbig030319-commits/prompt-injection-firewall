@@ -23,7 +23,7 @@ def _call_gemini(prompt: str) -> str:
     # of common candidates in order, and use whichever one actually works
     # for this API key -- this makes the app resilient to Google
     # deprecating or renaming models without warning.
-    candidates = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-pro-latest"]
+    candidates = ["gemini-3.8-flash", "gemini-flash-latest"]
     last_error = None
     for model_name in candidates:
         url = (
