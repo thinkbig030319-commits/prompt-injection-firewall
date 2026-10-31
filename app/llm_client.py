@@ -20,7 +20,8 @@ if _anthropic_key:
         _anthropic_client = None
 
 # Only models that have a free tier. Order = preference.
-GEMINI_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"]
+# The lite model is listed first because it is the fast, reliable one.
+GEMINI_MODELS = ["gemini-flash-lite-latest", "gemini-flash-latest"]
 
 FALLBACK_REPLY = (
     "(The AI model is temporarily unavailable - most likely the free-tier "
@@ -40,12 +41,18 @@ def _call_gemini(prompt: str) -> str:
         )
         resp = None
         for attempt in range(2):  # retry once if Google is overloaded (503)
-            resp = requests.post(url, json=body, timeout=30)
+            try:
+                resp = requests.post(url, json=body, timeout=20)
+            except requests.exceptions.RequestException:
+                resp = None  # timeout / network problem: try the next model
+                break
             if resp.status_code == 503 and attempt == 0:
                 time.sleep(2)
                 continue
             break
 
+        if resp is None:
+            continue
         if resp.status_code == 429:
             # Quota exhausted: stop immediately. Trying more models would
             # only burn more quota.
